@@ -1,4 +1,4 @@
-from langchain.document_loaders import RecursiveUrlLoader
+from langchain_community.document_loaders import RecursiveUrlLoader
 
 loader = RecursiveUrlLoader(
     url="https://www.angelone.in/support",
