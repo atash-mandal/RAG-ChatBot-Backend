@@ -6,8 +6,13 @@ loader = RecursiveUrlLoader(
     extractor=lambda x: x  # HTML is already a string
 )
 
+print("Crawling Web Pages...")
+
 documents = loader.load()
 
 with open("./data/crawled_pages/crawled.txt", "w", encoding="utf-8") as f:
     for doc in documents:
         f.write(doc.page_content + "\n")
+
+print("Crawling Completed.")
+print(f"Total crawled pages: {len(documents)}")
