@@ -1,47 +1,57 @@
+import os
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-from utils import split_documents
 from langchain_core.documents import Document
-import os
+from utils import split_documents
 
-# Create embedding model
-embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+# Configure environment
+os.environ["HF_HOME"] = os.path.abspath("D:/hf_cache")
 
-documents = []
-
-# Load crawled text
-with open("./data/crawled_pages/crawled.txt", encoding="utf-8") as f:
-    text = f.read()
-    documents.append(Document(page_content=text))
-
-# Load parsed PDF text
-with open("./data/parsed_pdfs.txt", encoding="utf-8") as f:
-    text = f.read()
-    documents.append(Document(page_content=text))
-
-print("Loaded documents...")
-chunks = split_documents(documents)
-print(f"Split into {len(chunks)} chunks.")
-
-# Generate embeddings and build the FAISS index incrementally
-batch_size = 500  # Adjust based on memory
-batched_chunks = [chunks[i:i + batch_size] for i in range(0, len(chunks), batch_size)]
-
-# Initialize FAISS index with the first batch
-first_batch = batched_chunks[0]
-print(f"Initializing FAISS index with the first batch of {len(first_batch)} chunks")
-index = FAISS.from_documents(first_batch, embedding)
-
-# Process and add embeddings in batches
-for i, batch in enumerate(batched_chunks[1:], start=1):
-    print(f"Processing batch {i + 1}/{len(batched_chunks)} with {len(batch)} chunks")
+def load_documents():
+    """Load and return documents from text files."""
+    files = [
+        "./data/crawled_pages/crawled.txt",
+        "./data/parsed_pdfs.txt"
+    ]
     
-    # Generate embeddings for the current batch
-    batch_vectorstore = FAISS.from_documents(batch, embedding)
+    documents = []
+    for file_path in files:
+        with open(file_path, encoding="utf-8") as f:
+            documents.append(Document(page_content=f.read()))
     
-    # Instead of using add_vectors, merge the two vector stores
-    index.merge_from(batch_vectorstore)
+    return documents
 
-# Save the final vector store
-index.save_local("index/faiss_index")
-print("Index saved.")
+def build_faiss_index():
+    """Build and save FAISS index from documents."""
+    # Initialize embedding model
+    embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    
+    # Load and split documents
+    print("Loading documents...")
+    documents = load_documents()
+    chunks = split_documents(documents)
+    print(f"Split into {len(chunks)} chunks")
+    
+    # Build index in batches
+    batch_size = 500
+    print(f"Building FAISS index with batch size {batch_size}")
+    
+    # Initialize with first batch
+    index = FAISS.from_documents(chunks[:batch_size], embedding)
+    
+    # Add remaining chunks in batches
+    for i in range(batch_size, len(chunks), batch_size):
+        batch = chunks[i:i + batch_size]
+        print(f"Processing batch {i//batch_size + 1}, chunks {i}-{i + len(batch)}")
+        
+        batch_index = FAISS.from_documents(batch, embedding)
+        index.merge_from(batch_index)
+    
+    # Save index
+    index.save_local("index/faiss_index")
+    print("Index saved successfully")
+    
+    return index
+
+if __name__ == "__main__":
+    build_faiss_index()
